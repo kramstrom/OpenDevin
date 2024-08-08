@@ -21,6 +21,7 @@ from opendevin.events.stream import EventStream
 from opendevin.runtime import (
     DockerSSHBox,
     E2BBox,
+    ModalSandBox,
     LocalBox,
     Sandbox,
 )
@@ -55,6 +56,7 @@ class ServerRuntime(Runtime):
         logger.debug(f'ServerRuntime `{sid}` config:\n{self.config}')
 
     def create_sandbox(self, sid: str = 'default', box_type: str = 'ssh') -> Sandbox:
+        assert box_type == 'modal'
         if box_type == 'local':
             return LocalBox(
                 config=self.config.sandbox, workspace_base=self.config.workspace_base
@@ -76,6 +78,11 @@ class ServerRuntime(Runtime):
             return E2BBox(
                 config=self.config.sandbox,
                 e2b_api_key=self.config.e2b_api_key,
+            )
+        elif box_type == 'modal':
+            return ModalSandBox(
+                config=self.config.sandbox,
+                # workspace_base=self.config.workspace_base,
             )
         else:
             raise ValueError(f'Invalid sandbox type: {box_type}')

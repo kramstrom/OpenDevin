@@ -1,6 +1,7 @@
 from .docker.local_box import LocalBox
 from .docker.ssh_box import DockerSSHBox
 from .e2b.sandbox import E2BBox
+from .modal.sandbox import ModalSandBox
 from .sandbox import Sandbox
 
 
@@ -18,6 +19,10 @@ def get_runtime_cls(name: str):
         from .e2b.runtime import E2BRuntime
 
         return E2BRuntime
+    elif name == 'modal':
+        from .modal.runtime import ModalRuntime
+
+        return ModalRuntime
     else:
         raise ValueError(f'Runtime {name} not supported')
 
@@ -25,6 +30,7 @@ def get_runtime_cls(name: str):
 __all__ = [
     'DockerSSHBox',
     'E2BBox',
+    'ModalSandBox',
     'LocalBox',
     'Sandbox',
     'get_runtime_cls',
