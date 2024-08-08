@@ -1,4 +1,5 @@
 from .e2b.sandbox import E2BBox
+from .modal.sandbox import ModalSandBox
 
 
 def get_runtime_cls(name: str):
@@ -11,11 +12,16 @@ def get_runtime_cls(name: str):
         from .e2b.runtime import E2BRuntime
 
         return E2BRuntime
+    elif name == 'modal':
+        from .modal.runtime import ModalRuntime
+
+        return ModalRuntime
     else:
         raise ValueError(f'Runtime {name} not supported')
 
 
 __all__ = [
     'E2BBox',
+    'ModalSandBox',
     'get_runtime_cls',
 ]
