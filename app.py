@@ -28,6 +28,7 @@ image = (
 
 @app.function(
     allow_concurrent_inputs=100,
+    container_idle_timeout=300,
     image=image,
     mounts=[
         modal.Mount.from_local_dir("opendevin", remote_path="/root/opendevin"),

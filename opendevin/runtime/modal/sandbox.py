@@ -1,8 +1,6 @@
 import modal
-import atexit
 import os
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 from opendevin.core.config import SandboxConfig
 from opendevin.core.logger import opendevin_logger as logger
@@ -32,7 +30,7 @@ image = (
     .run_commands(
         """wget --progress=bar:force -O Miniforge3.sh \
             "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh" && \
-            bash Miniforge3.sh -b -p /opendevin/miniforge3 
+            bash Miniforge3.sh -b -p /opendevin/miniforge3
             """
     )
     .run_commands("/opendevin/miniforge3/bin/pip install --upgrade pip")
@@ -51,88 +49,61 @@ image = (
 workspace_volume = modal.Volume.from_name(
     "opendevin-workspace-volume", create_if_missing=True
 )
-workdir_volume = modal.Volume.from_name(
-    "opendevin-workdir-volume", create_if_missing=True
-)
-
-# mounts = [
-#     modal.Mount.from_local_dir(
-#         "/root/opendevin/runtime/plugins",
-#         remote_path="/opendevin/plugins",
-#     )
-# ]
 
 
 class ModalSandBox(Sandbox):
     def __init__(
         self,
         config: SandboxConfig,
-        # workspace_base: str,
     ):
         self.config = config
-        # self.sandbox = None # create modal sandbox here
-        # os.makedirs(workspace_base, exist_ok=True)
-        # self.workspace_base = workspace_base
-        # atexit.register(self.cleanup)
-
-        self.mounts = []
 
         super().__init__(config)
+
+        logger.info("creating sandbox")
+        self.sandbox = modal.Sandbox.create(
+            "sleep",
+            "infinity",
+            image=image,
+            volumes={
+                os.environ["WORKSPACE_MOUNT_PATH"]: workspace_volume,
+            },
+            mounts=[modal.Mount.from_local_dir("/root/opendevin", remote_path="/root/opendevin")],
+            timeout=300,  # 5 minutes
+        )
+        logger.info("finished creating sandbox")
+
+
 
     def execute(
         self, cmd: str, stream: bool = False, timeout: int | None = None
     ) -> tuple[int, str | CancellableStream]:
-        # local_dir = Path(TemporaryDirectory().name)
+        cmd = f"cd {os.environ['WORKSPACE_MOUNT_PATH']}; {cmd}"
+        logger.info(f"`{cmd=}`")
 
-        logger.info(f"executing command: `{cmd}`")
-        logger.info(f"mounts: {self.mounts}")
+        process = self.sandbox.exec("bash", "-c", cmd)
 
-        sb = modal.Sandbox.create(
-            "bash",
-            "-c",
-            cmd,
-            image=image,
-            volumes={
-                os.environ["WORKSPACE_MOUNT_PATH"]: workspace_volume,
-                "/app": workdir_volume,
-            },
-            mounts=self.mounts,
-            timeout=120,  # 1 minute
-            workdir="/app",
-        )
+        stdout = process.stdout.read()
+        logger.info(f"`{stdout=}`")
 
-        sb.wait()
+        # stderr = process.stderr.read()
+        # logger.info(f"`{stderr=}`")
 
-        returncode = sb.returncode
-        stdout = sb.stdout.read()
-        stderr = sb.stderr.read()
-
-        logger.info(f"returncode: {returncode}")
-        logger.info(f"stdout: {stdout}")
-        logger.info(f"stderr: {stderr}")
-
-        # return (sb.returncode, sb.stdout.read(), sb.stderr.read())
-        return (returncode, stdout)
+        return (0, stdout)
 
     def close(self):
         logger.info("closing sandbox")
+        # self.sandbox.terminate()
 
     def copy_to(self, host_src: str, sandbox_dest: str, recursive: bool = False):
         logger.info(f"copying {host_src} to {sandbox_dest}, recursive={recursive}")
-
         sandbox_dest = Path(sandbox_dest) / Path(host_src).name
+        cmd = f"cp -r {host_src} {sandbox_dest}" if recursive else f"cp {host_src} {sandbox_dest}"
+        returncode, _ = self.execute(cmd)
 
-        if recursive:
-            self.mounts.append(
-                modal.Mount.from_local_dir(host_src, remote_path=sandbox_dest)
-            )
-        else:
-            self.mounts.append(
-                modal.Mount.from_local_file(host_src, remote_path=sandbox_dest)
-            )
-
-        # raise NotImplementedError
+        if returncode != 0:
+            raise RuntimeError(f"Failed to copy {host_src} to {sandbox_dest} in sandbox")
 
     def get_working_directory(self):
         logger.info("getting working directory")
-        # raise NotImplementedError
+        raise NotImplementedError
